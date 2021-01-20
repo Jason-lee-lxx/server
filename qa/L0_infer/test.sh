@@ -25,6 +25,8 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+set -e
+
 REPO_VERSION=${NVIDIA_TRITON_SERVER_VERSION}
 if [ "$#" -ge 1 ]; then
     REPO_VERSION=$1
@@ -219,14 +221,17 @@ for TARGET in cpu gpu; do
     # Modify custom_zero_1_float32 and custom_nobatch_zero_1_float32 for relevant ensembles
     # This is done after the instance group change above so that identity custom backends
     # are run on CPU
+    ls -ltr ../custom_models/custom_zero_1_float32
     if [[ $BACKENDS == *"custom"* ]]; then
-      cp -r ../custom_models/custom_zero_1_float32 models/. &&\
+      cp -r ../custom_models/custom_zero_1_float32 models/. && \
+          ls -ltr models/custom_zero_1_float32
           mkdir -p models/custom_zero_1_float32/1 && \
           cp `pwd`/libidentity.so models/custom_zero_1_float32/1/. && \
           (cd models/custom_zero_1_float32 && \
               echo "default_model_filename: \"libidentity.so\"" >> config.pbtxt && \
               echo "instance_group [ { kind: KIND_CPU }]" >> config.pbtxt)
       cp -r models/custom_zero_1_float32 models/custom_nobatch_zero_1_float32 && \
+          ls -ltr models/custom_nobatch_zero_1_float32 && \
           (cd models/custom_zero_1_float32 && \
               sed -i "s/max_batch_size: 1/max_batch_size: 8/" config.pbtxt && \
               sed -i "s/dims: \[ 1 \]/dims: \[ -1 \]/" config.pbtxt) && \
