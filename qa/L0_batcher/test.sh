@@ -66,11 +66,28 @@ if [ "$TEST_VALGRIND" -eq 1 ]; then
                                 test_multi_batch_different_shape_allow_ragged"
 fi
 
-DATADIR=${DATADIR:="/data/inferenceserver/${REPO_VERSION}"}
-OPTDIR=${OPTDIR:="/opt"}
-SERVER=${OPTDIR}/tritonserver/bin/tritonserver
-BACKEND_DIR=${OPTDIR}/tritonserver/backends
 TF_VERSION=${TF_VERSION:=1}
+
+# On windows the paths invoked by the script (running in WSL) must use
+# /mnt/c when needed but the paths on the tritonserver command-line
+# must be C:/ style.
+if [[ "$(< /proc/sys/kernel/osrelease)" == *Microsoft ]]; then
+    MODELDIR=${MODELDIR:=C:/models}
+    DATADIR=${DATADIR:="/mnt/c/data/inferenceserver/${REPO_VERSION}"}
+    BACKEND_DIR=${BACKEND_DIR:=C:/tritonserver/backends}
+    SERVER=${SERVER:=/mnt/c/tritonserver/bin/tritonserver.exe}
+    export USE_HTTP=0
+    export USE_GRPC=1
+else
+    MODELDIR=${MODELDIR:=`pwd`}
+    DATADIR=${DATADIR:="/data/inferenceserver/${REPO_VERSION}"}
+    OPTDIR=${OPTDIR:="/opt"}
+    BACKEND_DIR=${OPTDIR}/tritonserver/backends
+    SERVER=${OPTDIR}/tritonserver/bin/tritonserver
+    export USE_HTTP=1
+    export USE_GRPC=0    # speed up test runtime
+fi
+
 SERVER_ARGS_EXTRA="--backend-directory=${BACKEND_DIR} --backend-config=tensorflow,version=${TF_VERSION}"
 source ../common/util.sh
 
@@ -161,14 +178,19 @@ for model_type in FIXED VARIABLE; do
     export BATCHER_TYPE=$model_type
     MODEL_PATH=models && [[ "$model_type" == "VARIABLE" ]] && MODEL_PATH=var_models
     for i in $NO_DELAY_TESTS ; do
-        SERVER_ARGS="--model-repository=`pwd`/$MODEL_PATH ${SERVER_ARGS_EXTRA}"
+        SERVER_ARGS="--model-repository=$MODELDIR/$MODEL_PATH ${SERVER_ARGS_EXTRA}"
         SERVER_LOG="./$i.$model_type.serverlog"
         
         if [ "$TEST_VALGRIND" -eq 1 ]; then
             LEAKCHECK_LOG="./$i.$model_type.valgrind.log"
             LEAKCHECK_ARGS="$LEAKCHECK_ARGS_BASE --log-file=$LEAKCHECK_LOG"
             run_server_leakcheck
-        else  
+        elif [[ "$(< /proc/sys/kernel/osrelease)" == *Microsoft ]]; then
+            # We rely on HTTP endpoint in run_server so until HTTP is
+            # implemented for win we do this hack...
+            run_server_nowait
+            sleep 15
+        else
             run_server
         fi
         
@@ -181,7 +203,7 @@ for model_type in FIXED VARIABLE; do
         echo "Test: $i, $model_type" >>$CLIENT_LOG
 
         set +e
-        python $BATCHER_TEST BatcherTest.$i >>$CLIENT_LOG 2>&1
+        python3 $BATCHER_TEST BatcherTest.$i >>$CLIENT_LOG 2>&1
         if [ $? -ne 0 ]; then
             echo -e "\n***\n*** Test Failed\n***"
             RET=1
@@ -195,8 +217,7 @@ for model_type in FIXED VARIABLE; do
         fi
         set -e
 
-        kill $SERVER_PID
-        wait $SERVER_PID
+        kill_server
 
         set +e
         if [ "$TEST_VALGRIND" -eq 1 ]; then
@@ -215,14 +236,19 @@ for model_type in FIXED VARIABLE; do
             [[ "$i" != "test_multi_batch_use_biggest_preferred" ]] && export TRITONSERVER_DELAY_SCHEDULER=3 &&
             [[ "$i" != "test_multi_batch_use_best_preferred" ]] &&
             [[ "$i" != "test_multi_batch_delayed_use_max_batch" ]] && export TRITONSERVER_DELAY_SCHEDULER=2
-        SERVER_ARGS="--model-repository=`pwd`/$MODEL_PATH ${SERVER_ARGS_EXTRA}"
+        SERVER_ARGS="--model-repository=$MODELDIR/$MODEL_PATH ${SERVER_ARGS_EXTRA}"
         SERVER_LOG="./$i.$model_type.serverlog"
         
         if [ "$TEST_VALGRIND" -eq 1 ]; then
             LEAKCHECK_LOG="./$i.$model_type.valgrind.log"
             LEAKCHECK_ARGS="$LEAKCHECK_ARGS_BASE --log-file=$LEAKCHECK_LOG"
             run_server_leakcheck
-        else  
+        elif [[ "$(< /proc/sys/kernel/osrelease)" == *Microsoft ]]; then
+            # We rely on HTTP endpoint in run_server so until HTTP is
+            # implemented for win we do this hack...
+            run_server_nowait
+            sleep 15
+        else
             run_server
         fi
         
@@ -235,7 +261,7 @@ for model_type in FIXED VARIABLE; do
         echo "Test: $i" >>$CLIENT_LOG
 
         set +e
-        python $BATCHER_TEST BatcherTest.$i >>$CLIENT_LOG 2>&1
+        python3 $BATCHER_TEST BatcherTest.$i >>$CLIENT_LOG 2>&1
         if [ $? -ne 0 ]; then
             echo -e "\n***\n*** Test Failed\n***"
             RET=1
@@ -250,8 +276,7 @@ for model_type in FIXED VARIABLE; do
         set -e
 
         unset TRITONSERVER_DELAY_SCHEDULER
-        kill $SERVER_PID
-        wait $SERVER_PID
+        kill_server
 
         set +e
         if [ "$TEST_VALGRIND" -eq 1 ]; then
@@ -266,14 +291,19 @@ done
 
 export BATCHER_TYPE=VARIABLE
 for i in $DIFFERENT_SHAPE_TESTS ; do
-    SERVER_ARGS="--model-repository=`pwd`/var_models ${SERVER_ARGS_EXTRA}"
+    SERVER_ARGS="--model-repository=$MODELDIR/var_models ${SERVER_ARGS_EXTRA}"
     SERVER_LOG="./$i.VARIABLE.serverlog"
     
     if [ "$TEST_VALGRIND" -eq 1 ]; then        
         LEAKCHECK_LOG="./$i.VARIABLE.valgrind.log"
         LEAKCHECK_ARGS="$LEAKCHECK_ARGS_BASE --log-file=$LEAKCHECK_LOG"
         run_server_leakcheck
-    else  
+    elif [[ "$(< /proc/sys/kernel/osrelease)" == *Microsoft ]]; then
+        # We rely on HTTP endpoint in run_server so until HTTP is
+        # implemented for win we do this hack...
+        run_server_nowait
+        sleep 15
+    else
         run_server
     fi
     
@@ -286,7 +316,7 @@ for i in $DIFFERENT_SHAPE_TESTS ; do
     echo "Test: $i" >>$CLIENT_LOG
 
     set +e
-    python $BATCHER_TEST BatcherTest.$i >>$CLIENT_LOG 2>&1
+    python3 $BATCHER_TEST BatcherTest.$i >>$CLIENT_LOG 2>&1
     if [ $? -ne 0 ]; then
         echo -e "\n***\n*** Test Failed\n***"
         RET=1
@@ -300,8 +330,7 @@ for i in $DIFFERENT_SHAPE_TESTS ; do
     fi
     set -e
 
-    kill $SERVER_PID
-    wait $SERVER_PID
+    kill_server
 
     set +e
     if [ "$TEST_VALGRIND" -eq 1 ]; then
@@ -320,14 +349,19 @@ export BATCHER_TYPE=VARIABLE
 for i in \
         test_multi_batch_delayed_preferred_different_shape ; do
     export TRITONSERVER_DELAY_SCHEDULER=4
-    SERVER_ARGS="--model-repository=`pwd`/var_models ${SERVER_ARGS_EXTRA}"
+    SERVER_ARGS="--model-repository=$MODELDIR/var_models ${SERVER_ARGS_EXTRA}"
     SERVER_LOG="./$i.VARIABLE.serverlog"
     
     if [ "$TEST_VALGRIND" -eq 1 ]; then      
         LEAKCHECK_LOG="./$i.VARIABLE.valgrind.log"
         LEAKCHECK_ARGS="$LEAKCHECK_ARGS_BASE --log-file=$LEAKCHECK_LOG"
         run_server_leakcheck
-    else  
+    elif [[ "$(< /proc/sys/kernel/osrelease)" == *Microsoft ]]; then
+        # We rely on HTTP endpoint in run_server so until HTTP is
+        # implemented for win we do this hack...
+        run_server_nowait
+        sleep 15
+    else
         run_server
     fi
     
@@ -340,7 +374,7 @@ for i in \
     echo "Test: $i" >>$CLIENT_LOG
 
     set +e
-    python $BATCHER_TEST BatcherTest.$i >>$CLIENT_LOG 2>&1
+    python3 $BATCHER_TEST BatcherTest.$i >>$CLIENT_LOG 2>&1
     if [ $? -ne 0 ]; then
         echo -e "\n***\n*** Test Failed\n***"
         RET=1
@@ -355,8 +389,7 @@ for i in \
     set -e
 
     unset TRITONSERVER_DELAY_SCHEDULER
-    kill $SERVER_PID
-    wait $SERVER_PID
+    kill_server
 
     set +e 
     if [ "$TEST_VALGRIND" -eq 1 ]; then
@@ -401,14 +434,19 @@ if [[ $BACKENDS == *"custom"* ]]; then
     export TRITONSERVER_DELAY_SCHEDULER=12
 
     # not preserve
-    SERVER_ARGS="--trace-file=not_preserve.log --trace-level=MIN --trace-rate=1 --model-repository=`pwd`/custom_models  ${SERVER_ARGS_EXTRA}"
+    SERVER_ARGS="--trace-file=not_preserve.log --trace-level=MIN --trace-rate=1 --model-repository=$MODELDIR/custom_models ${SERVER_ARGS_EXTRA}"
     SERVER_LOG="./not_preserve.serverlog"
     
     if [ "$TEST_VALGRIND" -eq 1 ]; then
         LEAKCHECK_LOG="./not_preserve.valgrind.log"
         LEAKCHECK_ARGS="$LEAKCHECK_ARGS_BASE --log-file=$LEAKCHECK_LOG"
         run_server_leakcheck
-    else  
+    elif [[ "$(< /proc/sys/kernel/osrelease)" == *Microsoft ]]; then
+        # We rely on HTTP endpoint in run_server so until HTTP is
+        # implemented for win we do this hack...
+        run_server_nowait
+        sleep 15
+    else
         run_server
     fi
 
@@ -421,7 +459,7 @@ if [[ $BACKENDS == *"custom"* ]]; then
     echo "Test: not_preserve" >>$CLIENT_LOG
 
     set +e
-    python $BATCHER_TEST BatcherTest.$TEST_CASE >>$CLIENT_LOG 2>&1
+    python3 $BATCHER_TEST BatcherTest.$TEST_CASE >>$CLIENT_LOG 2>&1
     if [ $? -ne 0 ]; then
         echo -e "\n***\n*** Test Failed\n***"
         RET=1
@@ -435,8 +473,7 @@ if [[ $BACKENDS == *"custom"* ]]; then
     fi
     set -e
 
-    kill $SERVER_PID
-    wait $SERVER_PID
+    kill_server
     
     set +e 
     if [ "$TEST_VALGRIND" -eq 1 ]; then
@@ -446,7 +483,7 @@ if [[ $BACKENDS == *"custom"* ]]; then
         fi
     fi
 
-    python $VERIFY_TIMESTAMPS not_preserve.log
+    python3 $VERIFY_TIMESTAMPS not_preserve.log
     if [ $? -ne 0 ]; then
         echo -e "\n***\n*** Test Failed\n***"
         RET=1
@@ -457,14 +494,19 @@ if [[ $BACKENDS == *"custom"* ]]; then
     (cd custom_models/custom_zero_1_float32 && \
             sed -i "s/dynamic_batching.*/dynamic_batching { preferred_batch_size: [ 4 ] preserve_ordering: true }/g" config.pbtxt)
 
-    SERVER_ARGS="--trace-file=preserve.log --trace-level=MIN --trace-rate=1 --model-repository=`pwd`/custom_models  ${SERVER_ARGS_EXTRA}"
+    SERVER_ARGS="--trace-file=preserve.log --trace-level=MIN --trace-rate=1 --model-repository=$MODELDIR/custom_models  ${SERVER_ARGS_EXTRA}"
     SERVER_LOG="./preserve.serverlog"
 
     if [ "$TEST_VALGRIND" -eq 1 ]; then     
         LEAKCHECK_LOG="./preserve.valgrind.log"
         LEAKCHECK_ARGS="$LEAKCHECK_ARGS_BASE --log-file=$LEAKCHECK_LOG"
         run_server_leakcheck
-    else  
+    elif [[ "$(< /proc/sys/kernel/osrelease)" == *Microsoft ]]; then
+        # We rely on HTTP endpoint in run_server so until HTTP is
+        # implemented for win we do this hack...
+        run_server_nowait
+        sleep 15
+    else
         run_server
     fi
 
@@ -477,7 +519,7 @@ if [[ $BACKENDS == *"custom"* ]]; then
     echo "Test: preserve" >>$CLIENT_LOG
 
     set +e
-    python $BATCHER_TEST BatcherTest.$TEST_CASE >>$CLIENT_LOG 2>&1
+    python3 $BATCHER_TEST BatcherTest.$TEST_CASE >>$CLIENT_LOG 2>&1
     if [ $? -ne 0 ]; then
         echo -e "\n***\n*** Test Failed\n***"
         RET=1
@@ -491,8 +533,7 @@ if [[ $BACKENDS == *"custom"* ]]; then
     fi
     set -e
 
-    kill $SERVER_PID
-    wait $SERVER_PID
+    kill_server
 
     set +e
     if [ "$TEST_VALGRIND" -eq 1 ]; then
@@ -502,7 +543,7 @@ if [[ $BACKENDS == *"custom"* ]]; then
         fi
     fi
 
-    python $VERIFY_TIMESTAMPS -p preserve.log
+    python3 $VERIFY_TIMESTAMPS -p preserve.log
     if [ $? -ne 0 ]; then
         echo -e "\n***\n*** Test Failed\n***"
         RET=1
