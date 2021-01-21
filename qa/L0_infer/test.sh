@@ -225,14 +225,16 @@ for TARGET in cpu gpu; do
     ls -ltr ../custom_models/custom_zero_1_float32
     if [[ $BACKENDS == *"custom"* ]]; then
       cp -r ../custom_models/custom_zero_1_float32 models/. && \
+          mkdir -p models/custom_zero_1_float32/1 && \
+          chmod -R a+w models/custom_zero_1_float32 && \
           ls -ltrd models/custom_zero_1_float32
           ls -ltr models/custom_zero_1_float32
-          mkdir -p models/custom_zero_1_float32/1 && \
           cp `pwd`/libidentity.so models/custom_zero_1_float32/1/. && \
           (cd models/custom_zero_1_float32 && \
               echo "default_model_filename: \"libidentity.so\"" >> config.pbtxt && \
               echo "instance_group [ { kind: KIND_CPU }]" >> config.pbtxt)
       cp -r models/custom_zero_1_float32 models/custom_nobatch_zero_1_float32 && \
+          chmod -R a+w models/custom_nobatch_zero_1_float32 && \
           ls -ltrd models/custom_nobatch_zero_1_float32 && \
           ls -ltr models/custom_nobatch_zero_1_float32 && \
           (cd models/custom_zero_1_float32 && \
