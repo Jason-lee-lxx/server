@@ -221,9 +221,11 @@ for TARGET in cpu gpu; do
     # Modify custom_zero_1_float32 and custom_nobatch_zero_1_float32 for relevant ensembles
     # This is done after the instance group change above so that identity custom backends
     # are run on CPU
+    ls -ltrd ../custom_models/custom_zero_1_float32
     ls -ltr ../custom_models/custom_zero_1_float32
     if [[ $BACKENDS == *"custom"* ]]; then
       cp -r ../custom_models/custom_zero_1_float32 models/. && \
+          ls -ltrd models/custom_zero_1_float32
           ls -ltr models/custom_zero_1_float32
           mkdir -p models/custom_zero_1_float32/1 && \
           cp `pwd`/libidentity.so models/custom_zero_1_float32/1/. && \
@@ -231,13 +233,19 @@ for TARGET in cpu gpu; do
               echo "default_model_filename: \"libidentity.so\"" >> config.pbtxt && \
               echo "instance_group [ { kind: KIND_CPU }]" >> config.pbtxt)
       cp -r models/custom_zero_1_float32 models/custom_nobatch_zero_1_float32 && \
+          ls -ltrd models/custom_nobatch_zero_1_float32 && \
           ls -ltr models/custom_nobatch_zero_1_float32 && \
           (cd models/custom_zero_1_float32 && \
+              ls -ltr && \
               sed -i "s/max_batch_size: 1/max_batch_size: 8/" config.pbtxt && \
+              ls -ltr && \
               sed -i "s/dims: \[ 1 \]/dims: \[ -1 \]/" config.pbtxt) && \
           (cd models/custom_nobatch_zero_1_float32 && \
+              ls -ltr && \
               sed -i "s/custom_zero_1_float32/custom_nobatch_zero_1_float32/" config.pbtxt && \
+              ls -ltr && \
               sed -i "s/max_batch_size: 1/max_batch_size: 0/" config.pbtxt && \
+              ls -ltr && \
               sed -i "s/dims: \[ 1 \]/dims: \[ -1, -1 \]/" config.pbtxt)
     fi
 
