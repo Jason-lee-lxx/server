@@ -36,7 +36,7 @@ import numpy as np
 import infer_util as iu
 import test_util as tu
 
-import tritongrpcclient as grpcclient
+import tritonclient.grpc as grpcclient
 
 TEST_SYSTEM_SHARED_MEMORY = bool(
     int(os.environ.get('TEST_SYSTEM_SHARED_MEMORY', 0)))
@@ -44,9 +44,9 @@ TEST_CUDA_SHARED_MEMORY = bool(int(os.environ.get('TEST_CUDA_SHARED_MEMORY',
                                                   0)))
 
 if TEST_SYSTEM_SHARED_MEMORY:
-    import tritonshmutils.shared_memory as shm
+    import tritonclient.utils.shared_memory as shm
 if TEST_CUDA_SHARED_MEMORY:
-    import tritonshmutils.cuda_shared_memory as cudashm
+    import tritonclient.utils.cuda_shared_memory as cudashm
 
 USE_GRPC = (os.environ.get('USE_GRPC', 1) != "0")
 USE_HTTP = (os.environ.get('USE_HTTP', 1) != "0")
@@ -341,8 +341,7 @@ class BatcherTest(tu.TestResultCollector):
                                      args=(self, trial, 1, dtype, ([1, 16],),
                                            ([1, 16],)),
                                      kwargs={
-                                         'use_grpc': USE_GRPC,
-                                         'use_http': USE_HTTP,
+                                         'use_grpc': False,
                                          'use_http_json_tensors': False,
                                          'use_streaming': False
                                      }))
@@ -351,8 +350,7 @@ class BatcherTest(tu.TestResultCollector):
                                      args=(self, trial, 1, dtype, ([1, 8],),
                                            ([1, 8],)),
                                      kwargs={
-                                         'use_grpc': USE_GRPC,
-                                         'use_http': USE_HTTP,
+                                         'use_grpc': False,
                                          'use_http_json_tensors': False,
                                          'use_streaming': False
                                      }))
@@ -1303,8 +1301,7 @@ class BatcherTest(tu.TestResultCollector):
                                      args=(self, model_base, 1, dtype, shapes,
                                            shapes),
                                      kwargs={
-                                         'use_grpc': USE_GRPC,
-                                         'use_http': USE_HTTP,
+                                         'use_grpc': False,
                                          'use_http_json_tensors':
                                              False,
                                          'use_streaming':

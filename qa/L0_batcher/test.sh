@@ -77,15 +77,12 @@ if [[ "$(< /proc/sys/kernel/osrelease)" == *Microsoft ]]; then
     BACKEND_DIR=${BACKEND_DIR:=C:/tritonserver/backends}
     SERVER=${SERVER:=/mnt/c/tritonserver/bin/tritonserver.exe}
     export USE_HTTP=0
-    export USE_GRPC=1
 else
     MODELDIR=${MODELDIR:=`pwd`}
     DATADIR=${DATADIR:="/data/inferenceserver/${REPO_VERSION}"}
     OPTDIR=${OPTDIR:="/opt"}
     BACKEND_DIR=${OPTDIR}/tritonserver/backends
     SERVER=${OPTDIR}/tritonserver/bin/tritonserver
-    export USE_HTTP=1
-    export USE_GRPC=0    # speed up test runtime
 fi
 
 SERVER_ARGS_EXTRA="--backend-directory=${BACKEND_DIR} --backend-config=tensorflow,version=${TF_VERSION}"
